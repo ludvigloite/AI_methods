@@ -53,10 +53,46 @@ def viterbi(f0,O,T,E):
     return bestPath, M
 
 
+def forwardDBN(f0,t,Track,Food,T,E):
+
+    f = f0
+
+    for k in range(t):
+        #print("E: ",E[k])
+        if E[k,0] is not None:
+            f = np.diag(Track[E[k,0]]) @ np.diag(Food[E[k,1]]) @ T.T @ f
+        else:
+            f = T.T @ f
+        t += 1
+
+    return f
 
 
-if __name__ == "__main__":
-    ##
+def backwardDBN(N,t,Track,Food,T,E):
+
+    b = np.ones(2)
+
+    for i in range(N-1,t-1,-1):
+        Track_diag = np.diag(Track[E[i,0]])
+        Food_diag = np.diag(Food[E[i,1]])
+        b = T @ Track_diag @ Food_diag @ b
+
+    return b
+
+
+def forward_backwardDBN(N,f0,t,Track,Food,T,E):
+
+    fv = forwardDBN(f0,t,Track,Food,T,E)
+    b = backwardDBN(N,t,Track,Food,T,E)
+    sv = fv * b
+    sv = sv / sv.sum()
+
+    return sv
+
+
+def task1():
+
+    print("\n\n--- TASK 1 ---")
 
     runB = True
     runC = True
@@ -119,8 +155,6 @@ if __name__ == "__main__":
             print(f"P(X{t} | e1:{N}) = {sv}")
 
 
-
-
     if runE:
 
         print("\n\n--- Task 1e - Most likely sequence ---")
@@ -129,5 +163,109 @@ if __name__ == "__main__":
 
         print(f"\nThe most likely sequence is:\n {bestPath}\n")
         print(f"The probabilities (M matrix) are: \n {M}\n")
+
+
+def task2():
+
+    print("\n\n--- TASK 2 ---")
+
+    runB = True
+    runC = True
+    runE = True
+
+    #Emission tables
+    Track = np.array([[0.7, 0.2],
+                    [0.3, 0.8]])
+
+    Food = np.array([[0.3, 0.1],
+                    [0.7, 0.9]])
+
+
+    # Transition table
+    Trans = np.array([[0.8, 0.3],
+                    [0.2, 0.7]]).T
+
+    # Initial estimate
+    f0 = np.array([0.7, 0.3])
+
+    # Evidence. Figured i need: True = 0, False = 1
+    E = np.array([[0, 0],
+                [1, 0],
+                [1, 1],
+                [0, 1]])
+
+
+    #print(np.diag(Track[E[2,0]]))
+
+    if runB:
+
+        print("\n\n--- Task 2b - Filtering ---")
+
+        for t in range(4):
+            t += 1
+
+            f = forwardDBN(f0,t,Track,Food,Trans,E)
+            f = f/f.sum()
+
+            print("\nt = ",t)
+            print(f"P(X{t} | e1:{t}) = {f}")
+
+
+    if runC:
+
+        print("\n\n--- Task 2c - Prediction ---")
+
+        E_pred = np.array([[0, 0],
+                [1, 0],
+                [1, 1],
+                [0, 1],
+                [None, None],
+                [None, None],
+                [None, None],
+                [None, None]])
+
+        for t in range(4,8):
+            t += 1
+
+            f = forwardDBN(f0,t,Track,Food,Trans,E_pred)
+            f = f/f.sum()
+
+            print("\nt = ",t)
+            print(f"P(X{t} | e1:4) = {f}")
+
+    if runE:
+
+        print("\n\n--- Task 2e - Smoothing ---")
+
+        N = 4
+
+        for t in range(N):
+            sv = forward_backwardDBN(N,f0,t,Track,Food,Trans,E)
+
+            print("\nt = ",t)
+            print(f"P(X{t} | e1:{N}) = {sv}")
+
+
+    
+
+
+    
+
+
+
+
+if __name__ == "__main__":
+    ##
+
+    runTask1 = True
+    runTask2 = True
+
+    if runTask1:
+        task1()
+
+    if runTask2:
+        task2()
+
+    
 
 
