@@ -19,21 +19,14 @@ def backward(N,t,O,T,E):
     b = np.ones(T[0].shape)
 
     for i in range(N-1,t-1,-1):
-        #print(i)
         e = E[i]
         O_diag = np.diag(O[e])
         b = T @ O_diag @ b
-        #print("b: ", b)
-        #print("e: ", e," O: ",O_diag)
 
     return b
 
 
 def forward_backward(N,f0,t,O,T,E):
-
-    #fv = []
-    #sv = []
-    #b = np.ones(t)
 
     fv = forward(f0,t,O,T,E)
     b = backward(N,t,O,T,E)
@@ -43,15 +36,32 @@ def forward_backward(N,f0,t,O,T,E):
     return sv
 
 
+def viterbi(f0,O,T,E):
+    H, _ = T.shape
+    N = len(E)
+    M = np.zeros((H, N))
+
+    M0 = O[E[0]] * (T.T @ f0)
+
+    M[:,0] = M0 / M0.sum() #Not really sure why we need to normalize this, and not the other elements
+    
+
+    for i in range(1,N):
+        M[:,i] = O[E[0]] * np.max(T * M[:,None,i-1], axis=0)
+
+    bestPath = np.argmax(M, axis = 0)
+    return bestPath, M
+
+
 
 
 if __name__ == "__main__":
     ##
 
-    runB = False
-    runC = False
+    runB = True
+    runC = True
     runD = True
-    runE = False
+    runE = True
 
     #Emission table
     O = np.array([[0.75, 0.2],
@@ -69,7 +79,7 @@ if __name__ == "__main__":
 
     if runB:
 
-        print("\n--- Task 1b - Filtering ---")
+        print("\n\n--- Task 1b - Filtering ---")
 
         for t in range(6):
             t += 1
@@ -82,7 +92,7 @@ if __name__ == "__main__":
         
     if runC:
 
-        print("\n--- Task 1c - Prediction ---")
+        print("\n\n--- Task 1c - Prediction ---")
 
         E_pred = [0, 0, 1, 0, 1, 0] + [None]*24
 
@@ -97,11 +107,9 @@ if __name__ == "__main__":
 
     if runD:
 
-        print("\n--- Task 1d - Smoothing ---")
+        print("\n\n--- Task 1d - Smoothing ---")
 
         N = 6
-        #print("O_:", O)
-        #print("O_diag:", np.diag(O[0]), np.diag(O[1]))
 
 
         for t in range(N):
@@ -115,6 +123,11 @@ if __name__ == "__main__":
 
     if runE:
 
-        print("\n--- Task 1e - Most likely sequence ---")
+        print("\n\n--- Task 1e - Most likely sequence ---")
+
+        bestPath, M = viterbi(f0,O,T,E)
+
+        print(f"\nThe most likely sequence is:\n {bestPath}\n")
+        print(f"The probabilities (M matrix) are: \n {M}\n")
 
 
