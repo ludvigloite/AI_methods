@@ -1,0 +1,5 @@
+Survived,Pclass,Name,Sex,Age,SibSp,Parch,Ticket,Fare,Cabin,Embarked
+0,1,"Schabert, Mrs. Paul (Emma Mock)",female,35,1,0,13236,57.75,C28,C
+1,2,"Jansson, Mr. Carl Olof",female,21,0,0,350034,7.7958,,S
+1,3,"Corey, Mrs. Percy C (Mary Phyllis Elizabeth Miller)",female,,0,0,F.C.C. 13534,21,,S
+0,2,"Corey, Mrs. Percy C (Mary Phyllis Elizabeth Miller)",male,,0,0,F.C.C. 13534,21,,S
