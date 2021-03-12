@@ -32,23 +32,31 @@ def choose_attribute(attributes, examples, type):
                 numSurvivedTotal = np.sum(examples['Survived'])
                 k = 0
                 countsUnder = 0
+                entropiesBetweenValues = np.ones(len(values))
+
                 while numSurvived < numSurvivedTotal/2:
                     survivedCol = examples.where(examples[attribute]==values[k]).dropna()['Survived']
 
                     numSurvived += np.sum(survivedCol)
                     countsUnder += counts[j]
+
+
+                    splitting_point_value = (values[k]+values[k+1]) / 2
+                    survivedColUnderSplit = examples.where(examples[attribute] < splitting_point_value).dropna()['Survived']
+                    survivedColOverSplit = examples.where(examples[attribute] > splitting_point_value).dropna()['Survived']
+                    entropyUnder = countsUnder/np.sum(counts)*entropy(survivedColUnderSplit)
+                    entropyOver = (np.sum(counts)-countsUnder)/np.sum(counts) * entropy(survivedColOverSplit)
+                    entropyTotal = entropyUnder + entropyOver
+                    entropiesBetweenValues[k] = entropyTotal
+
+                    #print(f"k= {k} entropy= {entropyTotal}")
+
                     k+=1
-
-                    print(numSurvived)
                 
-                splitting_point_value = (values[k-1]+values[k]) / 2
-                survivedColUnderSplit = examples.where(examples[attribute] < splitting_point_value).dropna()['Survived']
-                survivedColOverSplit = examples.where(examples[attribute] > splitting_point_value).dropna()['Survived']
-                entropyUnder = countsUnder/np.sum(counts)*entropy(survivedColUnderSplit)
-                entropyOver = (np.sum(counts)-countsUnder)/np.sum(counts) * entropy(survivedColOverSplit)
-                entropyAfter = entropyUnder + entropyOver
-
-                splittingPoints[j] = splitting_point_value
+                maxIndex = np.argmin(entropiesBetweenValues)
+                splittingPoints[j] = (values[maxIndex]+values[maxIndex+1])/2
+                entropyAfter = entropiesBetweenValues[maxIndex]
+                #print(f"maxIndex= {maxIndex} entropy= {entropiesBetweenValues[maxIndex]} split= {splittingPoints[j]}")
             
             
             else:  
@@ -117,9 +125,17 @@ def decisionTreeLearning(examples, attributes, default):
 def predict(row, tree):
     attribute = list(tree)[0]
     nextTree = tree[attribute]
-
     value = row[attribute]
-    nextTree = nextTree[value]
+
+    if attribute != 'Fare': #endre!!!!!!!! Gjør mer generelt.
+        nextTree = nextTree[value]
+    else:
+        split = float(list(nextTree.keys())[0].split()[1])
+        if value < split:
+            nextTree = nextTree[list(nextTree.keys())[0]]
+        else:
+            nextTree = nextTree[list(nextTree.keys())[1]] # ikke sikkert disse funker for alle. kommer an på rekkefølgen av over/under i treet
+        
 
     if nextTree == 0 or nextTree == 1:
         return nextTree
@@ -138,7 +154,7 @@ def testTree(examples, tree):
         predicted.loc[i,"pred"] = predict(rows[i],tree)
 
     accuracy = np.sum(predicted["pred"] == examples["Survived"])/len(examples)*100
-
+    # Possibly bug in accuracy prediction. Is same if i remove Fare and Embarked.. May also be because Fare info i collected by Pclass
     return accuracy
 
 
