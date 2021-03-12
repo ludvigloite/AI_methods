@@ -5,7 +5,7 @@
 
 :white_check_mark:  Assignment 2
 
-:x:  Assignment 3   (Deadline 03.03)
+:white_check_mark:  Assignment 3
 
 :x:  Assignment 4   (Deadline 17.03)
 

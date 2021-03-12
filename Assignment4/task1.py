@@ -16,6 +16,7 @@ def choose_attribute(attributes, examples, type):
 
     if type == 'infoGain':
         #print("doing infoGain algo")
+        splittingPoints = np.zeros(len(attributes))
         entropies = np.zeros(len(attributes))
         entropyNow = entropy(examples['Survived']) #trenger man denne? Blir jo bare et tall uans
         #print("now: ",entropyNow)
@@ -26,11 +27,37 @@ def choose_attribute(attributes, examples, type):
             values, counts = np.unique(examples[attribute],return_counts=True)
             #print(attribute, values, counts)
 
-            for i in range(len(values)):
-                col_to_cal_entropy = examples.where(examples[attribute]==values[i]).dropna()['Survived']
-                #print(col_to_cal_entropy)
-                entropyI = entropy(col_to_cal_entropy)
-                entropyAfter += (counts[i]/np.sum(counts))*entropyI
+            if len(values) > 10: # continous variable
+                numSurvived = 0
+                numSurvivedTotal = np.sum(examples['Survived'])
+                k = 0
+                countsUnder = 0
+                while numSurvived < numSurvivedTotal/2:
+                    survivedCol = examples.where(examples[attribute]==values[k]).dropna()['Survived']
+
+                    numSurvived += np.sum(survivedCol)
+                    countsUnder += counts[j]
+                    k+=1
+
+                    print(numSurvived)
+                
+                splitting_point_value = (values[k-1]+values[k]) / 2
+                survivedColUnderSplit = examples.where(examples[attribute] < splitting_point_value).dropna()['Survived']
+                survivedColOverSplit = examples.where(examples[attribute] > splitting_point_value).dropna()['Survived']
+                entropyUnder = countsUnder/np.sum(counts)*entropy(survivedColUnderSplit)
+                entropyOver = (np.sum(counts)-countsUnder)/np.sum(counts) * entropy(survivedColOverSplit)
+                entropyAfter = entropyUnder + entropyOver
+
+                splittingPoints[j] = splitting_point_value
+            
+            
+            else:  
+
+                for i in range(len(values)):
+                    col_to_cal_entropy = examples.where(examples[attribute]==values[i]).dropna()['Survived']
+                    #print(col_to_cal_entropy)
+                    entropyI = entropy(col_to_cal_entropy)
+                    entropyAfter += (counts[i]/np.sum(counts))*entropyI
 
             entropies[j] = entropyNow-entropyAfter
             j+=1
@@ -40,7 +67,7 @@ def choose_attribute(attributes, examples, type):
         #print(maxIndex)
         #print(attributes[maxIndex])
         #print(entropies)
-        return attributes[maxIndex]
+        return attributes[maxIndex], splittingPoints[maxIndex]
 
     return True
 
@@ -49,7 +76,7 @@ def mode(examples):
     maxIndex = np.argmax(counts,axis=0)
     return values[maxIndex]
 
-def same_class(examples):
+def same_class(examples): #return Bool
     a = examples['Survived'].to_numpy()
     return (a[0]==a).all() # works
 
@@ -66,15 +93,24 @@ def decisionTreeLearning(examples, attributes, default):
         return mode(examples)
 
     else:
-        best = choose_attribute(attributes, examples, 'infoGain')
+        best, split = choose_attribute(attributes, examples, 'infoGain')
         tree = {best:{}}
         attributes.remove(best)
-        values, _ = np.unique(examples[best],return_counts=True)
+        if split == 0:
+            values, _ = np.unique(examples[best],return_counts=True)
+            for value in values:
+                examples_with_value = examples.where(examples[best]==value).dropna()
+                subtree = decisionTreeLearning(examples_with_value,attributes,mode(examples))
+                tree[best][value] = subtree
 
-        for value in values:
-            examples_with_value = examples.where(examples[best]==value).dropna()
-            subtree = decisionTreeLearning(examples_with_value,attributes,mode(examples))
-            tree[best][value] = subtree
+        else:
+            examples_under_split = examples.where(examples[best] < split).dropna()
+            subtree = decisionTreeLearning(examples_under_split,attributes,mode(examples))
+            tree[best][f"under {split}"] = subtree
+            
+            examples_over_split = examples.where(examples[best] > split).dropna()
+            subtree = decisionTreeLearning(examples_over_split,attributes,mode(examples))
+            tree[best][f"over {split}"] = subtree
 
     return tree
 
@@ -108,14 +144,19 @@ def testTree(examples, tree):
 
 if __name__ == "__main__":
 
-    attributes_disc = ['Pclass','Sex','SibSp','Parch']
-    usedCols_disc = ['Survived','Pclass','Sex','SibSp','Parch']
-    
+    attributes_disc = ['Pclass','Sex','SibSp','Parch','Fare','Embarked']
+    usedCols_disc = ['Survived','Pclass','Sex','SibSp','Parch','Fare','Embarked']
+
+    attributes_test = ['Fare']
+    usedCols_test = ['Survived','Fare']
+
+
     train_df = pd.read_csv(trainFile, usecols=usedCols_disc)
     test_df = pd.read_csv(testFile, usecols=usedCols_disc)
 
-    tester = pd.read_csv(smallTestFile, usecols=usedCols_disc)
+    tester = pd.read_csv(smallTestFile, usecols=usedCols_test)
 
+    #tree1 = decisionTreeLearning(tester, attributes_test, None)
 
     tree = decisionTreeLearning(train_df, attributes_disc, None)
     print(tree)
