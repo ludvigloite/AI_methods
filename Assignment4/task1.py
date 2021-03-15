@@ -16,6 +16,8 @@ def entropy(col):
 
 def choose_attribute(attributes, examples, type):
 
+    listContinousAtt = ['SibSp','Parch','Fare']
+
     if type == 'infoGain':
         #print("doing infoGain algo")
         splittingPoints = np.zeros(len(attributes))
@@ -29,18 +31,18 @@ def choose_attribute(attributes, examples, type):
             values, counts = np.unique(examples[attribute],return_counts=True)
             #print(attribute, values, counts)
 
-            if len(values) > 10: # continous variable
+            if attribute in listContinousAtt and len(values) > 1: # continous variable
                 numSurvived = 0
                 numSurvivedTotal = np.sum(examples['Survived'])
                 k = 0
                 countsUnder = 0
                 entropiesBetweenValues = np.ones(len(values))
 
-                while numSurvived < numSurvivedTotal/2:
+                while len(values) > k+1:
                     survivedCol = examples.where(examples[attribute]==values[k]).dropna()['Survived']
 
                     numSurvived += np.sum(survivedCol)
-                    countsUnder += counts[j]
+                    countsUnder += counts[k]
 
 
                     splitting_point_value = (values[k]+values[k+1]) / 2
@@ -145,11 +147,14 @@ def decisionTreeLearning(examples, attributes, default, simplify):
     return tree
 
 def predict(row, tree):
+
+    listContinousAtt = ['SibSp','Parch','Fare']
+
     attribute = list(tree)[0]
     nextTree = tree[attribute]
     value = row[attribute]
 
-    if attribute != 'Fare': #endre!!!!!!!! Gjør mer generelt.
+    if attribute not in listContinousAtt:
         nextTree = nextTree[value]
     else:
         split = float(list(nextTree.keys())[0].split()[1])
@@ -222,27 +227,35 @@ def visit(node, parent=None):
             # drawing the label using a distinct name
             draw(str(k), str(k)+'_'+str(v))
 
-"""
+
 def formulate(tree, parent):
 
     attribute = list(tree)[0]
     nextTree = tree[attribute]
-    attributes = list(nextTree)
-    value = nextTree[attributes[0]]
-    
 
+    if nextTree==0 or nextTree==1 or isinstance(nextTree, str) :
+        return str(nextTree)+str(parent)
+
+    attributes = list(nextTree)
+    #value = nextTree[attributes[0]]
+
+    if parent == None:
+        new_name = attribute
+    else:
+        new_name = str(attribute) +'_'+ str(parent)
+    
+    if len(attributes)==0:
+        return 1
+
+    print(new_name)
+    
     for att in attributes:
-        if parent == None:
-            subtree2 = 0
-        else:
-            subtree2 = 0
-        #subtree = formulate()
-        subtree=1
-        print()
+        
+        subtree = formulate(nextTree, new_name)
         
         tree[attribute][att] = subtree
 
-"""
+
 
 
 
@@ -258,14 +271,23 @@ if __name__ == "__main__":
     usedCols_test = ['Survived','Fare']
 
     simplifyBool = True
-    includeContinous = False
+    includeContinous = True
 
     if includeContinous:
+        print("started cont")
         train_df = pd.read_csv(trainFile, usecols=usedCols_cont)
         test_df = pd.read_csv(testFile, usecols=usedCols_cont)
 
         tree = decisionTreeLearning(train_df, attributes_cont, None, simplifyBool)
         print(tree)
+
+        #newTree = formulate(tree,None)
+
+        tree_copy = tree.copy()
+        graph = pydot.Dot(graph_type='graph')
+        visit(tree_copy)
+        print(graph.to_string())
+        graph.write_png('graph_cont.png')
 
         simpleTree = {'Sex': {'female': 1.0, 'male': 0.0}}
 
@@ -284,7 +306,7 @@ if __name__ == "__main__":
         graph = pydot.Dot(graph_type='graph')
         visit(tree_copy)
         print(graph.to_string())
-        graph.write_png('graph.png')
+        graph.write_png('graph_disc.png')
 
 
 
