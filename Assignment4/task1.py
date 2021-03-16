@@ -11,7 +11,7 @@ smallTestFile = 'Assignment4/testing.csv'
 
 def entropy(col):
     vc = pd.Series(col).value_counts(normalize=True, sort=False)
-    return -(vc * np.log(vc)/np.log(2)).sum() #base 2 her, sant?
+    return -(vc * np.log(vc)/np.log(2)).sum()
 
 
 def choose_attribute(attributes, examples, type):
@@ -31,7 +31,7 @@ def choose_attribute(attributes, examples, type):
             values, counts = np.unique(examples[attribute],return_counts=True)
             #print(attribute, values, counts)
 
-            if attribute in listContinousAtt and len(values) > 1: # continous variable
+            if attribute in listContinousAtt: #and len(values) > 1: # continous variable
                 numSurvived = 0
                 numSurvivedTotal = np.sum(examples['Survived'])
                 k = 0
@@ -46,6 +46,7 @@ def choose_attribute(attributes, examples, type):
 
 
                     splitting_point_value = (values[k]+values[k+1]) / 2
+                    #print(splitting_point_value)
                     survivedColUnderSplit = examples.where(examples[attribute] < splitting_point_value).dropna()['Survived']
                     survivedColOverSplit = examples.where(examples[attribute] > splitting_point_value).dropna()['Survived']
                     entropyUnder = countsUnder/np.sum(counts)*entropy(survivedColUnderSplit)
@@ -58,7 +59,10 @@ def choose_attribute(attributes, examples, type):
                     k+=1
                 
                 maxIndex = np.argmin(entropiesBetweenValues)
-                splittingPoints[j] = (values[maxIndex]+values[maxIndex+1])/2
+                if len(values)==1:
+                    splittingPoints[j] = np.round(values[0],3)
+                else:
+                    splittingPoints[j] = np.round((values[maxIndex]+values[maxIndex+1])/2,3)
                 entropyAfter = entropiesBetweenValues[maxIndex]
                 #print(f"maxIndex= {maxIndex} entropy= {entropiesBetweenValues[maxIndex]} split= {splittingPoints[j]}")
             
@@ -97,8 +101,10 @@ def same_class(examples, lim): #return Bool
         return False
     #return (a[0]==a).all() # works
 
-def decisionTreeLearning(examples, attributes, default, simplify):
+def decisionTreeLearning(all_examples, examples, attributes, default, simplify):
     #print(f"default: {default}")
+
+    listContinousAtt = ['SibSp','Parch','Fare']
     
     if len(examples) == 0:
         #print("empty examples")
@@ -115,12 +121,14 @@ def decisionTreeLearning(examples, attributes, default, simplify):
         tree = {best:{}}
         attributes_new = list(attributes)
         attributes_new.remove(best) # Denne kan endre attributes globalt. Lag heller kopi
-        if split == 0:
-            values, _ = np.unique(examples[best],return_counts=True)
+        if split==0 and best not in listContinousAtt:
+            values, _ = np.unique(all_examples[best],return_counts=True) #kan kanskje ikke returnere counts?
+            if len(values)==1:
+                print(best)
             for value in values:
                 #print(f"testing for {value} of {best}\n Attributes left: {attributes_new}")
                 examples_with_value = examples.where(examples[best]==value).dropna()
-                subtree = decisionTreeLearning(examples_with_value,attributes_new,mode(examples), simplify)
+                subtree = decisionTreeLearning(all_examples,examples_with_value,attributes_new,mode(examples), simplify)
                 if canSimplify(subtree) and simplify:
                     value2 = subtree[list(subtree)[0]]
                     value2 = value2[list(value2)[0]]
@@ -129,7 +137,7 @@ def decisionTreeLearning(examples, attributes, default, simplify):
 
         else:
             examples_under_split = examples.where(examples[best] < split).dropna()
-            subtree = decisionTreeLearning(examples_under_split,attributes_new,mode(examples), simplify)
+            subtree = decisionTreeLearning(all_examples,examples_under_split,attributes_new,mode(examples), simplify)
             if canSimplify(subtree) and simplify:
                 value2 = subtree[list(subtree)[0]]
                 value2 = value2[list(value2)[0]]
@@ -137,7 +145,7 @@ def decisionTreeLearning(examples, attributes, default, simplify):
             tree[best][f"under {split}"] = subtree
             
             examples_over_split = examples.where(examples[best] > split).dropna()
-            subtree = decisionTreeLearning(examples_over_split,attributes_new,mode(examples), simplify)
+            subtree = decisionTreeLearning(all_examples,examples_over_split,attributes_new,mode(examples), simplify)
             if canSimplify(subtree) and simplify:
                 value2 = subtree[list(subtree)[0]]
                 value2 = value2[list(value2)[0]]
@@ -154,11 +162,11 @@ def predict(row, tree):
     nextTree = tree[attribute]
     value = row[attribute]
 
-    if attribute not in listContinousAtt:
+    if attribute not in listContinousAtt or len(nextTree) == 1:
         nextTree = nextTree[value]
     else:
         split = float(list(nextTree.keys())[0].split()[1])
-        if value < split:
+        if value <= split:
             nextTree = nextTree[list(nextTree.keys())[0]]
         else:
             nextTree = nextTree[list(nextTree.keys())[1]] # ikke sikkert disse funker for alle. kommer an på rekkefølgen av over/under i treet
@@ -209,53 +217,48 @@ def canSimplify(tree):
         return True
 
 
+def findParentId(name):
+    edges = list(graph.obj_dict['edges'])
+    i_corr = 0
+    j_corr = 0
+    found = False
+    for i in range(len(edges)):
+        for j in range(len(edges[i])):
+            if edges[i][j] == id(name)+edges[i][j-1]:
+                #print("found parent")
+                found = True
+                i_corr = i
+                j_corr = j
+    
+    if found:            
+        return edges[i_corr][j_corr-1]+id(name)
+    else:
+        return id(name)
 
+#Inspired by Stackoverflow user 'greeness' (https://stackoverflow.com/questions/13688410/dictionary-object-to-decision-tree-in-pydot)
 def draw(parent_name, child_name):
-    edge = pydot.Edge(parent_name, child_name)
+    parentId = findParentId(parent_name)
+    graph.add_node(pydot.Node(parentId, label=str(parent_name)))
+    graph.add_node(pydot.Node(id(child_name)+parentId, label=str(child_name)))
+    #print(f"adding edge: {parentId} -- {id(child_name)+parentId}. id_child: {id(child_name)} {parent_name} -- {child_name}")
+    
+    edge = pydot.Edge(parentId, id(child_name)+parentId)
     graph.add_edge(edge)
 
+
+#Inspired by Stackoverflow user 'greeness' (https://stackoverflow.com/questions/13688410/dictionary-object-to-decision-tree-in-pydot)
 def visit(node, parent=None):
     for k,v in node.items():
         if isinstance(v, dict):
             # We start with the root node whose parent is None
             # we don't want to graph the None node
             if parent:
-                draw(str(parent), str(k))
+                draw(parent, k)
             visit(v, k)
         else:
-            draw(str(parent), str(k))
+            draw(parent, k)
             # drawing the label using a distinct name
-            draw(str(k), str(k)+'_'+str(v))
-
-
-def formulate(tree, parent):
-
-    attribute = list(tree)[0]
-    nextTree = tree[attribute]
-
-    if nextTree==0 or nextTree==1 or isinstance(nextTree, str) :
-        return str(nextTree)+str(parent)
-
-    attributes = list(nextTree)
-    #value = nextTree[attributes[0]]
-
-    if parent == None:
-        new_name = attribute
-    else:
-        new_name = str(attribute) +'_'+ str(parent)
-    
-    if len(attributes)==0:
-        return 1
-
-    print(new_name)
-    
-    for att in attributes:
-        
-        subtree = formulate(nextTree, new_name)
-        
-        tree[attribute][att] = subtree
-
-
+            draw(k, v)
 
 
 
@@ -270,65 +273,54 @@ if __name__ == "__main__":
     attributes_test = ['Fare']
     usedCols_test = ['Survived','Fare']
 
-    simplifyBool = True
+
+
+    simplifyBool = False
     includeContinous = True
 
+
+
+
     if includeContinous:
-        print("started cont")
+        filename = 'graph_continous.png'
         train_df = pd.read_csv(trainFile, usecols=usedCols_cont)
         test_df = pd.read_csv(testFile, usecols=usedCols_cont)
 
-        tree = decisionTreeLearning(train_df, attributes_cont, None, simplifyBool)
-        print(tree)
 
-        #newTree = formulate(tree,None)
+        print(f"\nStarting training on continous data set.")
+        tree = decisionTreeLearning(train_df, train_df, attributes_cont, None, simplifyBool)
 
         tree_copy = tree.copy()
         graph = pydot.Dot(graph_type='graph')
         visit(tree_copy)
-        print(graph.to_string())
-        graph.write_png('graph_cont.png')
+        graph.write_png(filename)
 
-        simpleTree = {'Sex': {'female': 1.0, 'male': 0.0}}
+        print(f"\nFinished building the tree. Saved the image to '{filename}'. Simplifyed? {simplifyBool}")
+        print('\nTesting the tree on our test data')
 
         accuracy = testTree(test_df, tree)
-        print(f'Accuracy: {accuracy} %')
+        print(f'Finished testing. Accuracy: {accuracy} %')
 
     else:
+        filename = 'graph_categorical.png'
+        print(f"\nStarting training on categorical data set.")
         train_df = pd.read_csv(trainFile, usecols=usedCols_disc)
         test_df = pd.read_csv(testFile, usecols=usedCols_disc)
 
-        tree = decisionTreeLearning(train_df, attributes_disc, None, simplifyBool)
-        print("tree: ",tree)
+        tree = decisionTreeLearning(train_df, train_df, attributes_disc, None, simplifyBool)
 
-        #newTree = formulate(tree,None)
         tree_copy = tree.copy()
         graph = pydot.Dot(graph_type='graph')
         visit(tree_copy)
         print(graph.to_string())
-        graph.write_png('graph_disc.png')
+        graph.write_png(filename)
 
 
-
-        simpleTree = {'Sex': {'female': 1.0, 'male': 0.0}}
-
-        #newTree = simplifyTree(tree)
+        print(f"\nFinished building the tree. Saved the image to '{filename}'. Simplifyed? {simplifyBool}")
+        print('\nTesting the tree on our test data')
 
         accuracy = testTree(test_df, tree)
-        print(f'Accuracy: {accuracy} %')
-
-
-
-    """
-    tester = pd.read_csv(smallTestFile, usecols=usedCols_test)
-
-    tree1 = decisionTreeLearning(tester, attributes_test, None)
-
-    print(tree)
-
-    accuracy = testTree(test_df, tree)
-    print(f'Accuracy: {accuracy} %')
-    """
+        print(f'Finished testing. Accuracy: {accuracy} %')
 
 
 
