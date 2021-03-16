@@ -8,90 +8,73 @@ trainFile = 'Assignment4/train.csv'
 testFile = 'Assignment4/test.csv'
 smallTestFile = 'Assignment4/testing.csv'
 
-
+# Returns entropy of column
 def entropy(col):
     vc = pd.Series(col).value_counts(normalize=True, sort=False)
     return -(vc * np.log(vc)/np.log(2)).sum()
 
+# Choosing the best attribute
+def choose_attribute(attributes, examples, listContinousAtt):
 
-def choose_attribute(attributes, examples, type):
+    splittingPoints = np.zeros(len(attributes))
+    entropies = np.zeros(len(attributes))
+    entropyNow = entropy(examples['Survived'])
+    j=0
+    for attribute in attributes:
+        entropyAfter = 0
+        values, counts = np.unique(examples[attribute],return_counts=True)
 
-    listContinousAtt = ['SibSp','Parch','Fare']
+        if attribute in listContinousAtt:
+            #Continous Attribute
+            numSurvived = 0
+            k = 0
+            countsUnder = 0
+            entropiesBetweenValues = np.ones(len(values))
 
-    if type == 'infoGain':
-        #print("doing infoGain algo")
-        splittingPoints = np.zeros(len(attributes))
-        entropies = np.zeros(len(attributes))
-        entropyNow = entropy(examples['Survived']) #trenger man denne? Blir jo bare et tall uans
-        #print("now: ",entropyNow)
-        j=0
-        for attribute in attributes:
-            entropyAfter = 0
+            while len(values) > k+1:
+                survivedCol = examples.where(examples[attribute]==values[k]).dropna()['Survived']
 
-            values, counts = np.unique(examples[attribute],return_counts=True)
-            #print(attribute, values, counts)
+                numSurvived += np.sum(survivedCol)
+                countsUnder += counts[k]
 
-            if attribute in listContinousAtt: #and len(values) > 1: # continous variable
-                numSurvived = 0
-                numSurvivedTotal = np.sum(examples['Survived'])
-                k = 0
-                countsUnder = 0
-                entropiesBetweenValues = np.ones(len(values))
+                splitting_point_value = (values[k]+values[k+1]) / 2
+                survivedColUnderSplit = examples.where(examples[attribute] < splitting_point_value).dropna()['Survived']
+                survivedColOverSplit = examples.where(examples[attribute] > splitting_point_value).dropna()['Survived']
+                entropyUnder = countsUnder/np.sum(counts)*entropy(survivedColUnderSplit)
+                entropyOver = (np.sum(counts)-countsUnder)/np.sum(counts) * entropy(survivedColOverSplit)
+                entropyTotal = entropyUnder + entropyOver
+                entropiesBetweenValues[k] = entropyTotal
 
-                while len(values) > k+1:
-                    survivedCol = examples.where(examples[attribute]==values[k]).dropna()['Survived']
-
-                    numSurvived += np.sum(survivedCol)
-                    countsUnder += counts[k]
-
-
-                    splitting_point_value = (values[k]+values[k+1]) / 2
-                    #print(splitting_point_value)
-                    survivedColUnderSplit = examples.where(examples[attribute] < splitting_point_value).dropna()['Survived']
-                    survivedColOverSplit = examples.where(examples[attribute] > splitting_point_value).dropna()['Survived']
-                    entropyUnder = countsUnder/np.sum(counts)*entropy(survivedColUnderSplit)
-                    entropyOver = (np.sum(counts)-countsUnder)/np.sum(counts) * entropy(survivedColOverSplit)
-                    entropyTotal = entropyUnder + entropyOver
-                    entropiesBetweenValues[k] = entropyTotal
-
-                    #print(f"k= {k} entropy= {entropyTotal}")
-
-                    k+=1
-                
-                maxIndex = np.argmin(entropiesBetweenValues)
-                if len(values)==1:
-                    splittingPoints[j] = np.round(values[0],3)
-                else:
-                    splittingPoints[j] = np.round((values[maxIndex]+values[maxIndex+1])/2,3)
-                entropyAfter = entropiesBetweenValues[maxIndex]
-                #print(f"maxIndex= {maxIndex} entropy= {entropiesBetweenValues[maxIndex]} split= {splittingPoints[j]}")
+                k+=1
             
-            
-            else:  
-
-                for i in range(len(values)):
-                    col_to_cal_entropy = examples.where(examples[attribute]==values[i]).dropna()['Survived']
-                    #print(col_to_cal_entropy)
-                    entropyI = entropy(col_to_cal_entropy)
-                    entropyAfter += (counts[i]/np.sum(counts))*entropyI
-
-            entropies[j] = entropyNow-entropyAfter
-            j+=1
+            maxIndex = np.argmin(entropiesBetweenValues)
+            if len(values)==1:
+                splittingPoints[j] = np.round(values[0],3)
+            else:
+                splittingPoints[j] = np.round((values[maxIndex]+values[maxIndex+1])/2,3)
+            entropyAfter = entropiesBetweenValues[maxIndex]        
         
-        maxIndex = np.argmax(entropies,axis=0)
+        else:  
+            #Categorical Attribute
+            for i in range(len(values)):
+                col_to_cal_entropy = examples.where(examples[attribute]==values[i]).dropna()['Survived']
+                entropyI = entropy(col_to_cal_entropy)
+                entropyAfter += (counts[i]/np.sum(counts))*entropyI
 
-        #print(maxIndex)
-        #print(attributes[maxIndex])
-        #print(entropies)
-        return attributes[maxIndex], splittingPoints[maxIndex]
+        entropies[j] = entropyNow-entropyAfter
+        j+=1
+    
+    maxIndex = np.argmax(entropies,axis=0)
 
-    return True
+    return attributes[maxIndex], splittingPoints[maxIndex]
 
+# Returning the Survived class that is mostly represented
 def mode(examples):
     values, counts = np.unique(examples['Survived'],return_counts=True)
     maxIndex = np.argmax(counts,axis=0)
     return values[maxIndex]
 
+#If lim=1 -> Returns True only if all are same class. Otherwise returns true if at least lim*100 % are same class
 def same_class(examples, lim): #return Bool
     a = examples['Survived'].to_numpy()
 
@@ -99,36 +82,29 @@ def same_class(examples, lim): #return Bool
         return True
     else:
         return False
-    #return (a[0]==a).all() # works
 
-def decisionTreeLearning(all_examples, examples, attributes, default, simplify):
-    #print(f"default: {default}")
-
-    listContinousAtt = ['SibSp','Parch','Fare']
+# Create a decision Tree
+def decisionTreeLearning(all_examples, examples, attributes, default, simplify, listContinousAtt):
     
     if len(examples) == 0:
-        #print("empty examples")
         return default
     elif same_class(examples, 1):
-        #print(f"same class {examples['Survived'].to_numpy()[0]}")
         return examples['Survived'].to_numpy()[0]
     elif len(attributes) == 0:
-        #print("empty attributes")
         return mode(examples)
 
     else:
-        best, split = choose_attribute(attributes, examples, 'infoGain')
+        best, split = choose_attribute(attributes, examples, listContinousAtt)
         tree = {best:{}}
         attributes_new = list(attributes)
-        attributes_new.remove(best) # Denne kan endre attributes globalt. Lag heller kopi
+        attributes_new.remove(best) # If i dont copy, the attributes values will be changed globally
         if split==0 and best not in listContinousAtt:
-            values, _ = np.unique(all_examples[best],return_counts=True) #kan kanskje ikke returnere counts?
-            if len(values)==1:
-                print(best)
+            #Categorical Attribute
+            values = np.unique(all_examples[best])
+            
             for value in values:
-                #print(f"testing for {value} of {best}\n Attributes left: {attributes_new}")
                 examples_with_value = examples.where(examples[best]==value).dropna()
-                subtree = decisionTreeLearning(all_examples,examples_with_value,attributes_new,mode(examples), simplify)
+                subtree = decisionTreeLearning(all_examples,examples_with_value,attributes_new,mode(examples), simplify, listContinousAtt)
                 if canSimplify(subtree) and simplify:
                     value2 = subtree[list(subtree)[0]]
                     value2 = value2[list(value2)[0]]
@@ -136,8 +112,9 @@ def decisionTreeLearning(all_examples, examples, attributes, default, simplify):
                 tree[best][value] = subtree
 
         else:
-            examples_under_split = examples.where(examples[best] < split).dropna()
-            subtree = decisionTreeLearning(all_examples,examples_under_split,attributes_new,mode(examples), simplify)
+            #Continous Attribute
+            examples_under_split = examples.where(examples[best] <= split).dropna()
+            subtree = decisionTreeLearning(all_examples,examples_under_split,attributes_new,mode(examples), simplify, listContinousAtt)
             if canSimplify(subtree) and simplify:
                 value2 = subtree[list(subtree)[0]]
                 value2 = value2[list(value2)[0]]
@@ -145,7 +122,7 @@ def decisionTreeLearning(all_examples, examples, attributes, default, simplify):
             tree[best][f"under {split}"] = subtree
             
             examples_over_split = examples.where(examples[best] > split).dropna()
-            subtree = decisionTreeLearning(all_examples,examples_over_split,attributes_new,mode(examples), simplify)
+            subtree = decisionTreeLearning(all_examples,examples_over_split,attributes_new,mode(examples), simplify, listContinousAtt)
             if canSimplify(subtree) and simplify:
                 value2 = subtree[list(subtree)[0]]
                 value2 = value2[list(value2)[0]]
@@ -154,9 +131,9 @@ def decisionTreeLearning(all_examples, examples, attributes, default, simplify):
 
     return tree
 
-def predict(row, tree):
 
-    listContinousAtt = ['SibSp','Parch','Fare']
+# Predicting if a person survived
+def predict(row, tree, listContinousAtt):
 
     attribute = list(tree)[0]
     nextTree = tree[attribute]
@@ -169,29 +146,27 @@ def predict(row, tree):
         if value <= split:
             nextTree = nextTree[list(nextTree.keys())[0]]
         else:
-            nextTree = nextTree[list(nextTree.keys())[1]] # ikke sikkert disse funker for alle. kommer an på rekkefølgen av over/under i treet
+            nextTree = nextTree[list(nextTree.keys())[1]]
         
-
     if nextTree == 0 or nextTree == 1:
         return nextTree
     else:
-        return predict(row, nextTree)
+        return predict(row, nextTree, listContinousAtt)
 
-
-def testTree(examples, tree):
-    #Removes the first col of examples, where Survived are
+# Testing tree and returning accuracy
+def testTree(examples, tree, listContinousAtt):
     rows = examples.iloc[:,1:].to_dict(orient = "records")
-    
     predicted = pd.DataFrame(columns=["pred"]) 
     
     for i in range(len(examples)):
-        predicted.loc[i,"pred"] = predict(rows[i],tree)
+        predicted.loc[i,"pred"] = predict(rows[i], tree, listContinousAtt)
 
     accuracy = np.sum(predicted["pred"] == examples["Survived"])/len(examples)*100
-    # Possibly bug in accuracy prediction. Is same if i remove Fare and Embarked.. May also be because Fare info i collected by Pclass
+
     return accuracy
 
-
+# Function used in descionTreeLearning() to check if tree can be simplifyed. 
+# I.e if all the leaf nodes have same value
 def canSimplify(tree):
 
     if tree == 0 or tree == 1:
@@ -200,23 +175,18 @@ def canSimplify(tree):
     attribute = list(tree)[0]
     nextTree = tree[attribute]
     attributes = list(nextTree)
-
     value = nextTree[attributes[0]]
-    #print(f"\ntree {tree} \n value: {value}")
 
-    #print(nextTree)
     count = 0
-
     for attribute in attributes:
-        #print(f"attribute: {attribute}\n NextTree[att]= {nextTree[attribute]}")
         if nextTree[attribute] == value:
             count += 1
     
     if count == len(attributes):
-        #print(f"Can simplify. \n {attributes}")
+        #Can simplify!
         return True
 
-
+#Function used in draw
 def findParentId(name):
     edges = list(graph.obj_dict['edges'])
     i_corr = 0
@@ -225,7 +195,7 @@ def findParentId(name):
     for i in range(len(edges)):
         for j in range(len(edges[i])):
             if edges[i][j] == id(name)+edges[i][j-1]:
-                #print("found parent")
+                #Found a node with name equal to parent node!
                 found = True
                 i_corr = i
                 j_corr = j
@@ -240,7 +210,6 @@ def draw(parent_name, child_name):
     parentId = findParentId(parent_name)
     graph.add_node(pydot.Node(parentId, label=str(parent_name)))
     graph.add_node(pydot.Node(id(child_name)+parentId, label=str(child_name)))
-    #print(f"adding edge: {parentId} -- {id(child_name)+parentId}. id_child: {id(child_name)} {parent_name} -- {child_name}")
     
     edge = pydot.Edge(parentId, id(child_name)+parentId)
     graph.add_edge(edge)
@@ -250,14 +219,11 @@ def draw(parent_name, child_name):
 def visit(node, parent=None):
     for k,v in node.items():
         if isinstance(v, dict):
-            # We start with the root node whose parent is None
-            # we don't want to graph the None node
             if parent:
                 draw(parent, k)
             visit(v, k)
         else:
             draw(parent, k)
-            # drawing the label using a distinct name
             draw(k, v)
 
 
@@ -273,8 +239,10 @@ if __name__ == "__main__":
     attributes_test = ['Fare']
     usedCols_test = ['Survived','Fare']
 
+    listContinousAtt = ['SibSp','Parch','Fare']
 
 
+    #### CHANGE THE VARIABLES BELOW TO TEST DIFFERENT CASES ####
     simplifyBool = False
     includeContinous = True
 
@@ -288,7 +256,7 @@ if __name__ == "__main__":
 
 
         print(f"\nStarting training on continous data set.")
-        tree = decisionTreeLearning(train_df, train_df, attributes_cont, None, simplifyBool)
+        tree = decisionTreeLearning(train_df, train_df, attributes_cont, None, simplifyBool, listContinousAtt)
 
         tree_copy = tree.copy()
         graph = pydot.Dot(graph_type='graph')
@@ -298,7 +266,7 @@ if __name__ == "__main__":
         print(f"\nFinished building the tree. Saved the image to '{filename}'. Simplifyed? {simplifyBool}")
         print('\nTesting the tree on our test data')
 
-        accuracy = testTree(test_df, tree)
+        accuracy = testTree(test_df, tree, listContinousAtt)
         print(f'Finished testing. Accuracy: {accuracy} %')
 
     else:
@@ -307,7 +275,7 @@ if __name__ == "__main__":
         train_df = pd.read_csv(trainFile, usecols=usedCols_disc)
         test_df = pd.read_csv(testFile, usecols=usedCols_disc)
 
-        tree = decisionTreeLearning(train_df, train_df, attributes_disc, None, simplifyBool)
+        tree = decisionTreeLearning(train_df, train_df, attributes_disc, None, simplifyBool, listContinousAtt)
 
         tree_copy = tree.copy()
         graph = pydot.Dot(graph_type='graph')
@@ -319,7 +287,7 @@ if __name__ == "__main__":
         print(f"\nFinished building the tree. Saved the image to '{filename}'. Simplifyed? {simplifyBool}")
         print('\nTesting the tree on our test data')
 
-        accuracy = testTree(test_df, tree)
+        accuracy = testTree(test_df, tree, listContinousAtt)
         print(f'Finished testing. Accuracy: {accuracy} %')
 
 
