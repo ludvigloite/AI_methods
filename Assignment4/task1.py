@@ -10,8 +10,8 @@ smallTestFile = 'Assignment4/testing.csv'
 
 # Returns entropy of column
 def entropy(col):
-    vc = pd.Series(col).value_counts(normalize=True, sort=False)
-    return -(vc * np.log(vc)/np.log(2)).sum()
+    p = pd.Series(col).value_counts(normalize=True)
+    return -(p * np.log(p)/np.log(2)).sum()
 
 # Choosing the best attribute
 def choose_attribute(attributes, examples, listContinousAtt):
@@ -78,7 +78,7 @@ def mode(examples):
 def same_class(examples, lim): #return Bool
     a = examples['Survived'].to_numpy()
 
-    if (a[0]==a).mean() > lim or (a[0]==a).mean() < (1-lim):
+    if (a[0]==a).mean() >= lim or (a[0]==a).mean() <= (1-lim):
         return True
     else:
         return False
@@ -236,9 +236,6 @@ if __name__ == "__main__":
     attributes_cont = ['Pclass','Sex','SibSp','Parch','Fare','Embarked']
     usedCols_cont = ['Survived','Pclass','Sex','SibSp','Parch','Fare','Embarked']
 
-    attributes_test = ['Fare']
-    usedCols_test = ['Survived','Fare']
-
     listContinousAtt = ['SibSp','Parch','Fare']
 
 
@@ -248,11 +245,14 @@ if __name__ == "__main__":
 
 
 
-
     if includeContinous:
-        filename = 'graph_continous.png'
+        filename = 'graph_continous_full.png'
+        if simplifyBool:
+            filename = 'graph_continous_simple.png'
+
         train_df = pd.read_csv(trainFile, usecols=usedCols_cont)
         test_df = pd.read_csv(testFile, usecols=usedCols_cont)
+
 
 
         print(f"\nStarting training on continous data set.")
@@ -270,17 +270,20 @@ if __name__ == "__main__":
         print(f'Finished testing. Accuracy: {accuracy} %')
 
     else:
-        filename = 'graph_categorical.png'
-        print(f"\nStarting training on categorical data set.")
+        filename = 'graph_categorical_full.png'
+        if simplifyBool:
+            filename = 'graph_categorical_simple.png'
+
         train_df = pd.read_csv(trainFile, usecols=usedCols_disc)
         test_df = pd.read_csv(testFile, usecols=usedCols_disc)
+
+        print(f"\nStarting training on categorical data set.")
 
         tree = decisionTreeLearning(train_df, train_df, attributes_disc, None, simplifyBool, listContinousAtt)
 
         tree_copy = tree.copy()
         graph = pydot.Dot(graph_type='graph')
         visit(tree_copy)
-        print(graph.to_string())
         graph.write_png(filename)
 
 
