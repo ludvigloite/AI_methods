@@ -5,7 +5,6 @@ import numpy as np
 import pickle
 import os
 
-
 class NeuralNetwork:
     """Implement/make changes to places in the code that contains #TODO."""
 
@@ -22,6 +21,7 @@ class NeuralNetwork:
 
         # Number of hidden units if hidden_layer = True.
         self.hidden_units = 25
+        self.nuOutput = 1
 
         # This parameter is called the step size, also known as the learning rate (lr).
         # See 18.6.1 in AIMA 3rd edition (page 719).
@@ -39,8 +39,33 @@ class NeuralNetwork:
         self.x_train, self.y_train = None, None
         self.x_test, self.y_test = None, None
 
-        # TODO: Make necessary changes here. For example, assigning the arguments "input_dim" and "hidden_layer" to
-        # variables and so forth.
+        np.random.seed(1)
+        self.nuInputNodes = input_dim + 1 #including bias
+        self.hidden_layer_bool = hidden_layer
+
+        if self.hidden_layer_bool:
+            self.nuNeurons = [self.hidden_units,self.nuOutput]
+        else:
+            self.nuNeurons = [self.nuOutput]
+        self.nuLayers = len(self.nuNeurons)
+
+        self.weights = []
+        
+        previousSize = self.nuInputNodes
+        for size in self.nuNeurons:
+            w_shape = (previousSize, size)
+            #print("Initializing weight to shape:", w_shape)
+        
+            weight = np.random.normal(0,1/np.sqrt(self.nuInputNodes), w_shape)
+            self.weights.append(weight)
+            previousSize = size
+
+
+        self.grads = [None for i in range(self.nuLayers)]
+        self.layer_outputs = [None for i in range(self.nuLayers)]
+        self.weighted_sums = [None for i in range(self.nuLayers)]
+
+
 
     def load_data(self, file_path: str = os.path.join(os.getcwd(), 'data_breast_cancer.p')) -> None:
         """
@@ -60,17 +85,44 @@ class NeuralNetwork:
             self.x_train, self.y_train = data['x_train'], data['y_train']
             self.x_test, self.y_test = data['x_test'], data['y_test']
 
+    def sigmoid(self, x):
+        return 1/(1 + np.exp(-x))
+
+    def sigmoid_dot(self, x):
+        return self.sigmoid(x) * (1 - self.sigmoid(x))
+
+    def backward(self, X, output, target):
+        # Executing backward step
+
+        self.grads[-1] = np.array(self.sigmoid_dot(self.weighted_sums[-1])*(target-output))
+
+        if self.hidden_layer_bool:
+            z = self.sigmoid_dot(self.weighted_sums[1])
+            self.grads[0] = np.array((self.grads[1] @ self.weights[1].T) * z)
+
     def train(self) -> None:
         """Run the backpropagation algorithm to train this neural network"""
-        # TODO: Implement the back-propagation algorithm outlined in Figure 18.24 (page 734) in AIMA 3rd edition.
-        # Only parts of the algorithm need to be implemented since we are only going for one hidden layer.
 
-        # Line 6 in Figure 18.24 says "repeat".
-        # We are going to repeat self.epochs times as written in the __init()__ method.
+        # Adding bias
+        self.x_train = np.insert(self.x_train, self.x_train.shape[1], 1, axis=1)
+        self.x_test = np.insert(self.x_test, self.x_test.shape[1], 1, axis=1)
 
-        # Line 27 in Figure 18.24 says "return network". Here you do not need to return anything as we are coding
-        # the neural network as a class
-        pass
+        print("Started training with hidden layer" if self.hidden_layer_bool else "Started training without hidden layer(perceptron)")
+
+
+        for epoch in range(self.epochs):
+            if epoch % 50 == 0:
+                print(f"Completed {epoch}/{self.epochs} epochs")
+            for x,y in zip(self.x_train, self.y_train):
+                y_predict = self.predict(x)
+                self.backward(x, y_predict, y)
+
+                for layer in range(self.nuLayers):
+                    self.weights[layer] += np.array(self.lr * (self.layer_outputs[layer] * self.grads[layer]))
+
+        print("Finished training with hidden layer\n" if self.hidden_layer_bool else "Finished training without hidden layer(perceptron)\n")
+                
+        
 
     def predict(self, x: np.ndarray) -> float:
         """
@@ -79,8 +131,17 @@ class NeuralNetwork:
         :param x: A single example (vector) with shape = (number of features)
         :return: A float specifying probability which is bounded [0, 1].
         """
-        # TODO: Implement the forward pass.
-        return 1  # Placeholder, remove when implementing
+        x = x.reshape((self.nuInputNodes, 1))
+        self.layer_outputs[0] = x
+
+        for n in range(self.nuLayers-1):
+            ws = self.layer_outputs[n].T @ self.weights[n]
+            self.weighted_sums[n] = ws
+            self.layer_outputs[n+1] = self.sigmoid(ws[0]).reshape((25,1))
+
+        ws_last = self.layer_outputs[-1].T @ self.weights[-1]
+        self.weighted_sums[-1] = ws_last
+        return self.sigmoid(ws_last)
 
 
 class TestAssignment5(unittest.TestCase):
