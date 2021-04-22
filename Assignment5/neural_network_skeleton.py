@@ -21,7 +21,6 @@ class NeuralNetwork:
 
         # Number of hidden units if hidden_layer = True.
         self.hidden_units = 25
-        self.nuOutput = 1
 
         # This parameter is called the step size, also known as the learning rate (lr).
         # See 18.6.1 in AIMA 3rd edition (page 719).
@@ -40,30 +39,30 @@ class NeuralNetwork:
         self.x_test, self.y_test = None, None
 
         np.random.seed(1)
+        self.nuOutput = 1
+
         self.nuInputNodes = input_dim + 1 #including bias
         self.hidden_layer_bool = hidden_layer
 
         if self.hidden_layer_bool:
-            self.nuNeurons = [self.hidden_units,self.nuOutput]
+            self.nuNeurons = [self.hidden_units, self.nuOutput]
         else:
             self.nuNeurons = [self.nuOutput]
         self.nuLayers = len(self.nuNeurons)
 
+        # Initializing weights
         self.weights = []
-        
         previousSize = self.nuInputNodes
         for size in self.nuNeurons:
-            w_shape = (previousSize, size)
-            #print("Initializing weight to shape:", w_shape)
-        
+            w_shape = (previousSize, size)        
             weight = np.random.normal(0,1/np.sqrt(self.nuInputNodes), w_shape)
             self.weights.append(weight)
             previousSize = size
 
 
-        self.grads = [None for i in range(self.nuLayers)]
-        self.layer_outputs = [None for i in range(self.nuLayers)]
-        self.weighted_sums = [None for i in range(self.nuLayers)]
+        self.grads = [None for i in range(self.nuLayers)]           # Array to store error gradients
+        self.layer_outputs = [None for i in range(self.nuLayers)]   # Array to store outputs from the different layers
+        self.weighted_sums = [None for i in range(self.nuLayers)]   # Array to store weighted sums
 
 
 
@@ -113,6 +112,7 @@ class NeuralNetwork:
         for epoch in range(self.epochs):
             if epoch % 50 == 0:
                 print(f"Completed {epoch}/{self.epochs} epochs")
+                
             for x,y in zip(self.x_train, self.y_train):
                 y_predict = self.predict(x)
                 self.backward(x, y_predict, y)
