@@ -1,4 +1,4 @@
-# TDT4171 - Artificial Intelligence Methods
+# TDT4171 - Artificial Intelligence Methods 
 
 Spring 2021
 
